@@ -60,9 +60,17 @@ export default function Auth() {
       <div className="auth-brand">
         <div className="wordmark">Kootam</div>
         <p className="auth-tag">Chat with your people. Talk every day and the 🔥 keeps growing.</p>
-        <div className="auth-streak" aria-hidden="true">
-          <span className="flame">🔥</span>
-          <span className="streak-num">27</span>
+        <div className="auth-preview" aria-hidden="true">
+          <div className="ap-head">
+            <span className="ap-avatar">A</span>
+            <span className="ap-name">Anjali<small>online</small></span>
+            <span className="streak-pill lit"><span className="flame">🔥</span><span className="num">27</span></span>
+          </div>
+          <div className="ap-body">
+            <div className="ap-b theirs">chaya at 5? ☕</div>
+            <div className="ap-b mine">done. don't break the streak 😤</div>
+            <div className="ap-b theirs">day 27 let's gooo</div>
+          </div>
         </div>
       </div>
 

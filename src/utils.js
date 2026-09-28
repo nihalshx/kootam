@@ -48,3 +48,8 @@ export function lastSeenText(iso) {
   if (mins < 60) return `last seen ${mins} min ago`
   return `last seen ${listTime(iso).toLowerCase()}${new Date(iso).toDateString() === new Date().toDateString() ? '' : ' at ' + timeOf(iso)}`
 }
+
+// Indian date (YYYY-MM-DD) of a timestamp
+export function istDayOf(iso) {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+}
