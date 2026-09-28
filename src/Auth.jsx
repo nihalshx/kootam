@@ -62,8 +62,8 @@ export default function Auth() {
         <p className="auth-tag">Chat with your people. Talk every day and the 🔥 keeps growing.</p>
         <div className="auth-preview" aria-hidden="true">
           <div className="ap-head">
-            <span className="ap-avatar">A</span>
-            <span className="ap-name">Anjali<small>online</small></span>
+            <span className="ap-avatar">L</span>
+            <span className="ap-name">Lahin<small>online</small></span>
             <span className="streak-pill lit"><span className="flame">🔥</span><span className="num">27</span></span>
           </div>
           <div className="ap-body">
