@@ -1,6 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { supabase } from './supabase'
 import Avatar from './Avatar'
+import Flame from './Flame'
 import { dayLabel, istDate, istDayOf, lastSeenText, streakState, timeOf } from './utils'
 
 export default function ChatView({ chat, me, profile, online, onBack }) {
@@ -14,6 +16,7 @@ export default function ChatView({ chat, me, profile, online, onBack }) {
   const [newCount, setNewCount] = useState(0)
   const [showStreakInfo, setShowStreakInfo] = useState(false)
   const [celebrate, setCelebrate] = useState(null)
+  const [sparkKey, setSparkKey] = useState(0)
   const channelRef = useRef(null)
   const listRef = useRef(null)
   const inputRef = useRef(null)
@@ -94,7 +97,7 @@ export default function ChatView({ chat, me, profile, online, onBack }) {
   useEffect(() => {
     if (chat.streak_count > (prevStreak.current || 0)) {
       setCelebrate(chat.streak_count)
-      const t = setTimeout(() => setCelebrate(null), 2600)
+      const t = setTimeout(() => setCelebrate(null), 2800)
       prevStreak.current = chat.streak_count
       return () => clearTimeout(t)
     }
@@ -153,6 +156,7 @@ export default function ChatView({ chat, me, profile, online, onBack }) {
     const content = text.trim()
     if (!content) return
     setText('')
+    setSparkKey(k => k + 1)
     stickToBottom.current = true
     const tempId = 'tmp-' + Date.now()
     setMessages(p => [...p, { id: tempId, chat_id: id, sender_id: me, content, created_at: new Date().toISOString(), pending: true, fresh: true }])
@@ -209,69 +213,100 @@ export default function ChatView({ chat, me, profile, online, onBack }) {
   const sentToday = new Set(messages.filter(m => !m.failed && istDayOf(m.created_at) === today).map(m => m.sender_id))
   const doneToday = members.length > 1 && members.every(m => sentToday.has(m.user_id))
 
+  const bubbleSpring = { type: 'spring', stiffness: 520, damping: 32 }
+
   return (
     <section className="chat">
       <header className="chat-head">
-        <button className="icon-btn back" onClick={onBack} aria-label="Back to chats">
+        <motion.button className="icon-btn back" onClick={onBack} aria-label="Back to chats" whileTap={{ scale: 0.88, x: -3 }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-        </button>
+        </motion.button>
         <Avatar name={chat.title} color={chat.avatar_color} group={chat.is_group} size={42} online={!chat.is_group && online.has(chat.other_user_id)} />
         <div className="head-text">
           <div className="head-title">{chat.title}</div>
-          <div className="head-sub">{subtitle}</div>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={typingNames.length ? 'typing' : 'status'}
+              className="head-sub"
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+            >{subtitle}</motion.div>
+          </AnimatePresence>
         </div>
 
         <div className="streak-wrap">
-          <button
+          <motion.button
             ref={streakBtnRef}
             className={`streak-pill ${s ? (s.risk ? 'risk' : 'lit') : 'cold'}`}
             onClick={() => setShowStreakInfo(v => !v)}
             aria-expanded={showStreakInfo}
             aria-label={s ? `${s.count}-day streak. Show details.` : 'No streak yet. Show how streaks work.'}
+            whileTap={{ scale: 0.92 }} whileHover={{ scale: 1.04 }}
           >
-            <span className="flame">{s?.risk ? '⏳' : '🔥'}</span>
-            <span className="num">{s ? s.count : 0}</span>
-          </button>
-          {showStreakInfo && (
-            <div className="streak-card" role="dialog" aria-label="Streak">
-              <div className="sc-top">
-                <span className="sc-big">{s ? s.count : 0}</span>
-                <span className="sc-label">{s ? 'day streak' : 'no streak yet'}</span>
-              </div>
-              <div className="sc-today">
-                <div className="sc-sub">Today</div>
-                {members.map(m => (
-                  <div key={m.user_id} className={`sc-person ${sentToday.has(m.user_id) ? 'done' : ''}`}>
-                    <span className="sc-mark">{sentToday.has(m.user_id) ? '✓' : ''}</span>
-                    {m.user_id === me ? 'You' : m.profiles?.display_name}
-                    <span className="sc-state">{sentToday.has(m.user_id) ? 'sent' : 'waiting'}</span>
+            <Flame size={18} state={s ? (s.risk ? 'risk' : 'lit') : 'cold'} />
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span key={s ? s.count : 0} className="num"
+                initial={{ y: 14, opacity: 0, scale: 1.5 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: -14, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 22 }}>
+                {s ? s.count : 0}
+              </motion.span>
+            </AnimatePresence>
+          </motion.button>
+          <AnimatePresence>
+            {showStreakInfo && (
+              <motion.div className="streak-card glass-strong" role="dialog" aria-label="Streak"
+                initial={{ opacity: 0, scale: 0.85, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: -6 }}
+                transition={{ type: 'spring', stiffness: 460, damping: 30 }} style={{ transformOrigin: 'top right' }}>
+                <div className="sc-top">
+                  <Flame size={40} state={s ? (s.risk ? 'risk' : 'lit') : 'cold'} />
+                  <div>
+                    <div className="sc-big">{s ? s.count : 0}</div>
+                    <div className="sc-label">{s ? 'day streak' : 'no streak yet'}</div>
                   </div>
-                ))}
-              </div>
-              <p className="sc-note">
-                {doneToday
-                  ? 'Today is done. Come back tomorrow to keep it going.'
-                  : `${chat.is_group ? 'Everyone needs' : 'You both need'} to send at least one message today (India time).`}
-              </p>
-            </div>
-          )}
+                </div>
+                <div className="sc-today">
+                  <div className="sc-sub">Today</div>
+                  {members.map((m, i) => (
+                    <motion.div key={m.user_id} className={`sc-person ${sentToday.has(m.user_id) ? 'done' : ''}`}
+                      initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.08 + i * 0.05 }}>
+                      <span className="sc-mark">{sentToday.has(m.user_id) ? '✓' : ''}</span>
+                      {m.user_id === me ? 'You' : m.profiles?.display_name}
+                      <span className="sc-state">{sentToday.has(m.user_id) ? 'sent' : 'waiting'}</span>
+                    </motion.div>
+                  ))}
+                </div>
+                <p className="sc-note">
+                  {doneToday
+                    ? 'Today is done. Come back tomorrow to keep it going.'
+                    : `${chat.is_group ? 'Everyone needs' : 'You both need'} to send at least one message today (India time).`}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </header>
 
-      {s?.risk && (
-        <div className="risk-bar">
-          <span>⏳</span> Your {s.count}-day streak ends at midnight unless {chat.is_group ? 'everyone' : 'you both'} message today.
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {s?.risk && (
+          <motion.div className="risk-bar" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+            <div className="risk-inner"><Flame size={15} state="risk" /> Your {s.count}-day streak goes out at midnight unless {chat.is_group ? 'everyone' : 'you both'} message today.</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="messages-wrap">
         <div className="messages" ref={listRef} onScroll={onScroll}>
+          {loading && (
+            <div className="msg-skeletons">
+              {[62, 40, 70, 34, 55].map((w, i) => <div key={i} className={`msg-skel ${i % 2 ? 'r' : ''}`} style={{ width: w + '%', animationDelay: i * 0.1 + 's' }} />)}
+            </div>
+          )}
           {!loading && messages.length === 0 && (
-            <div className="chat-empty">
+            <motion.div className="chat-empty glass-strong" initial={{ opacity: 0, y: 16, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={bubbleSpring}>
               <div className="ce-wave">👋</div>
               <p><strong>Say hi to {chat.is_group ? 'the group' : chat.title}</strong></p>
-              <p>When {chat.is_group ? 'everyone sends' : 'you both send'} a message on the same day, you start a 🔥 streak.</p>
-            </div>
+              <p>When {chat.is_group ? 'everyone sends' : 'you both send'} a message on the same day, you light a streak.</p>
+            </motion.div>
           )}
           {messages.map((m, i) => {
             const prev = messages[i - 1]
@@ -279,11 +314,19 @@ export default function ChatView({ chat, me, profile, online, onBack }) {
             const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString()
             const grouped = prev && !newDay && prev.sender_id === m.sender_id && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60000
             const sender = byId[m.sender_id]
+            const animate = m.fresh && !m.settled
+            const emojiOnly = /^\p{Extended_Pictographic}{1,3}$/u.test(m.content)
             return (
               <Fragment key={m.id}>
                 {newDay && <div className="day-sep"><span>{dayLabel(m.created_at)}</span></div>}
-                <div className={`bubble-row ${mine ? 'mine' : 'theirs'} ${grouped ? 'grouped' : 'first'} ${m.fresh && !m.settled ? 'fresh' : ''}`}>
-                  <div className={`bubble ${m.failed ? 'failed' : ''} ${/^\p{Extended_Pictographic}{1,3}$/u.test(m.content) ? 'emoji-only' : ''}`}>
+                <motion.div
+                  className={`bubble-row ${mine ? 'mine' : 'theirs'} ${grouped ? 'grouped' : 'first'}`}
+                  initial={animate ? { opacity: 0, y: 18, scale: emojiOnly ? 0.3 : 0.88 } : false}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={emojiOnly ? { type: 'spring', stiffness: 380, damping: 12 } : bubbleSpring}
+                  style={{ transformOrigin: mine ? 'bottom right' : 'bottom left' }}
+                >
+                  <div className={`bubble ${m.failed ? 'failed' : ''} ${emojiOnly ? 'emoji-only' : ''}`}>
                     {chat.is_group && !mine && !grouped && (
                       <div className="sender" style={{ color: sender?.avatar_color }}>{sender?.display_name || 'Someone'}</div>
                     )}
@@ -294,29 +337,58 @@ export default function ChatView({ chat, me, profile, online, onBack }) {
                     </span>
                   </div>
                   {m.failed && <button className="retry" onClick={() => retry(m)}>Not sent. Tap to edit and resend.</button>}
-                </div>
+                </motion.div>
               </Fragment>
             )
           })}
-          {typingNames.length > 0 && (
-            <div className="bubble-row theirs first fresh"><div className="bubble typing-bubble" aria-label="typing"><i /><i /><i /></div></div>
-          )}
+          <AnimatePresence>
+            {typingNames.length > 0 && (
+              <motion.div key="typing" className="bubble-row theirs first"
+                initial={{ opacity: 0, scale: 0.6, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.6 }}
+                transition={bubbleSpring} style={{ transformOrigin: 'bottom left' }}>
+                <div className="bubble typing-bubble" aria-label="typing"><i /><i /><i /></div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {!atBottom && (
-          <button className="jump" onClick={jumpToBottom} aria-label={newCount ? `${newCount} new messages. Jump to latest.` : 'Jump to latest'}>
-            {newCount > 0 && <span className="jump-count">{newCount}</span>}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-          </button>
-        )}
+        <AnimatePresence>
+          {!atBottom && (
+            <motion.button className="jump glass-strong" onClick={jumpToBottom}
+              aria-label={newCount ? `${newCount} new messages. Jump to latest.` : 'Jump to latest'}
+              initial={{ opacity: 0, scale: 0.5, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.5, y: 10 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 26 }} whileTap={{ scale: 0.9 }}>
+              <AnimatePresence>
+                {newCount > 0 && (
+                  <motion.span key="c" className="jump-count" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>{newCount}</motion.span>
+                )}
+              </AnimatePresence>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+            </motion.button>
+          )}
+        </AnimatePresence>
 
-        {celebrate && (
-          <div className="celebrate" role="status" aria-live="polite">
-            <div className="cel-flame">🔥</div>
-            <div className="cel-num">{celebrate}</div>
-            <div className="cel-text">{celebrate === 1 ? 'Streak started!' : `${celebrate}-day streak!`}</div>
-          </div>
-        )}
+        <AnimatePresence>
+          {celebrate && (
+            <motion.div className="celebrate" role="status" aria-live="polite"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.5 } }}>
+              <div className="cel-burst" aria-hidden="true">
+                {Array.from({ length: 16 }, (_, i) => (
+                  <i key={i} style={{ '--a': `${i * 22.5}deg`, '--d': `${90 + (i % 4) * 28}px`, '--s': `${4 + (i % 3) * 2}px`, animationDelay: `${(i % 3) * 0.05}s` }} />
+                ))}
+              </div>
+              <motion.div initial={{ scale: 0.1, y: 60, rotate: -20 }} animate={{ scale: 1, y: 0, rotate: 0 }} transition={{ type: 'spring', stiffness: 240, damping: 12 }}>
+                <Flame size={104} />
+              </motion.div>
+              <motion.div className="cel-num" initial={{ opacity: 0, y: 24, scale: 0.6 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.18, type: 'spring', stiffness: 320, damping: 16 }}>
+                {celebrate}
+              </motion.div>
+              <motion.div className="cel-text" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32, type: 'spring', stiffness: 320, damping: 22 }}>
+                {celebrate === 1 ? 'Streak lit!' : `${celebrate}-day streak!`}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <form className="composer" onSubmit={send}>
@@ -332,9 +404,21 @@ export default function ChatView({ chat, me, profile, online, onBack }) {
             aria-label="Message"
           />
         </div>
-        <button className={`send ${text.trim() ? 'ready' : ''}`} disabled={!text.trim()} aria-label="Send">
+        <motion.button
+          className={`send ${text.trim() ? 'ready' : ''}`}
+          disabled={!text.trim()}
+          aria-label="Send"
+          whileTap={{ scale: 0.85 }}
+          animate={{ rotate: text.trim() ? 0 : -45, scale: text.trim() ? 1 : 0.92 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+        >
           <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2z" /></svg>
-        </button>
+          {sparkKey > 0 && (
+            <span key={sparkKey} className="sparks" aria-hidden="true">
+              {Array.from({ length: 8 }, (_, i) => <i key={i} style={{ '--a': `${i * 45}deg` }} />)}
+            </span>
+          )}
+        </motion.button>
       </form>
     </section>
   )

@@ -1,3 +1,4 @@
+import Flame from './Flame'
 import { streakState } from './utils'
 
 export default function Streak({ count, lastDay }) {
@@ -8,7 +9,7 @@ export default function Streak({ count, lastDay }) {
     : `${s.count}-day streak. You all chatted today.`
   return (
     <span className={`streak ${s.risk ? 'risk' : ''}`} title={title} aria-label={title}>
-      <span className="flame">{s.risk ? '⏳' : '🔥'}</span>{s.count}
+      <Flame size={13} state={s.risk ? 'risk' : 'lit'} />{s.count}
     </span>
   )
 }
