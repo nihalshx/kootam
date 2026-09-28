@@ -1,0 +1,116 @@
+import { useEffect, useState } from 'react'
+import { supabase } from './supabase'
+import Avatar from './Avatar'
+
+export default function NewChat({ me, onClose, onOpen }) {
+  const [q, setQ] = useState('')
+  const [people, setPeople] = useState([])
+  const [groupMode, setGroupMode] = useState(false)
+  const [selected, setSelected] = useState([])
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      let query = supabase.from('profiles')
+        .select('id, username, display_name, avatar_color')
+        .neq('id', me).order('display_name').limit(40)
+      const s = q.trim().toLowerCase().replace(/[%,()*\\]/g, '')
+      if (s) query = query.or(`username.ilike.%${s}%,display_name.ilike.%${s}%`)
+      const { data } = await query
+      setPeople(data || [])
+    }, 200)
+    return () => clearTimeout(t)
+  }, [q, me])
+
+  useEffect(() => {
+    const onKey = e => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  async function pick(p) {
+    if (groupMode) {
+      setSelected(s => s.some(x => x.id === p.id) ? s.filter(x => x.id !== p.id) : [...s, p])
+      return
+    }
+    setBusy(true); setError('')
+    const { data, error } = await supabase.rpc('get_or_create_dm', { p_other: p.id })
+    setBusy(false)
+    if (error) return setError(error.message)
+    onOpen(data)
+  }
+
+  async function createGroup() {
+    if (!name.trim()) return setError('Give the group a name.')
+    if (selected.length < 1) return setError('Add at least one friend.')
+    setBusy(true); setError('')
+    const { data, error } = await supabase.rpc('create_group', { p_name: name.trim(), p_members: selected.map(s => s.id) })
+    setBusy(false)
+    if (error) return setError(error.message)
+    onOpen(data)
+  }
+
+  return (
+    <div className="overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={groupMode ? 'New group' : 'New chat'}>
+        <header className="sheet-head">
+          <h2>{groupMode ? 'New group' : 'New chat'}</h2>
+          <button className="icon-btn" onClick={onClose} aria-label="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+        </header>
+
+        <div className="sheet-body">
+          {groupMode && (
+            <input className="text-input" value={name} onChange={e => setName(e.target.value)} placeholder="Group name" maxLength={50} autoFocus />
+          )}
+          <input className="text-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name or username" autoFocus={!groupMode} />
+
+          {groupMode && selected.length > 0 && (
+            <div className="chips">
+              {selected.map(p => (
+                <button key={p.id} className="chip" onClick={() => pick(p)}>{p.display_name} ✕</button>
+              ))}
+            </div>
+          )}
+
+          {!groupMode && (
+            <button className="people-row make-group" onClick={() => { setGroupMode(true); setError('') }}>
+              <Avatar group color="#1C2640" size={40} />
+              <span>New group</span>
+            </button>
+          )}
+
+          <div className="people">
+            {people.length === 0 && <p className="hint">No one found. Ask your friends to create an account, then search for their username.</p>}
+            {people.map(p => {
+              const on = selected.some(s => s.id === p.id)
+              return (
+                <button key={p.id} className={`people-row ${on ? 'on' : ''}`} onClick={() => pick(p)} disabled={busy}>
+                  <Avatar name={p.display_name} color={p.avatar_color} size={40} />
+                  <span className="people-names">
+                    <strong>{p.display_name}</strong>
+                    <small>@{p.username}</small>
+                  </span>
+                  {groupMode && <span className={`check ${on ? 'on' : ''}`} aria-hidden="true">{on ? '✓' : ''}</span>}
+                </button>
+              )
+            })}
+          </div>
+          {error && <p className="msg-error">{error}</p>}
+        </div>
+
+        {groupMode && (
+          <footer className="sheet-foot">
+            <button className="btn-ghost" onClick={() => { setGroupMode(false); setSelected([]); setError('') }}>Back</button>
+            <button className="btn-primary" onClick={createGroup} disabled={busy}>
+              {busy ? 'Creating…' : `Create group${selected.length ? ` (${selected.length + 1})` : ''}`}
+            </button>
+          </footer>
+        )}
+      </div>
+    </div>
+  )
+}
